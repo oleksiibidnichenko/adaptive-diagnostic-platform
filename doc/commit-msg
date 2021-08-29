@@ -1,0 +1,29 @@
+#!/bin/sh
+
+NAME=$(git config user.name)
+EMAIL=$(git config user.email)
+RANDOM=$( (whoami ; hostname ; date; cat $1 ; echo $RANDOM) | git hash-object --stdin)
+
+if [ -z "$NAME" ]; then
+    echo "empty git config user.name"
+    exit 1
+fi
+
+if [ -z "$EMAIL" ]; then
+    echo "empty git config user.email"
+    exit 1
+fi
+
+if test "$#" != 1 ; then
+  echo "$0 requires an argument."
+  exit 1
+fi
+
+if test ! -f "$1" ; then
+  echo "file does not exist: $1"
+  exit 1
+fi
+
+git interpret-trailers --if-exists doNothing --trailer "Signed-off-by: $NAME <$EMAIL>" --in-place "$1"
+
+git interpret-trailers --if-exists doNothing --trailer "Change-Id: I${RANDOM}" --in-place "$1"
