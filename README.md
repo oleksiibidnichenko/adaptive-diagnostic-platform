@@ -23,9 +23,8 @@ This project is an initial step/proof of concept towards the open-source impleme
 
 # ToDo
 1. Docker containers for the build automation:
-    1. ARMv7;
-    2. ARMv8;
-    3. x86_64.
+    1. ARMv8;
+    2. x86_64.
 2. Revise repository composition. It should be an explicit functionality split as well as an ability to customize the diagnostics platform for the target control unit.
 3. Extend coding guideline tacking capabilities.
     1. Provide pre-commit hooks;

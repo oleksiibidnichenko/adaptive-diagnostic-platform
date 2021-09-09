@@ -1,0 +1,76 @@
+FROM ubuntu:18.04
+
+ENV GNU_HOST=arm-linux-gnueabihf
+ENV C_COMPILER_ARM_LINUX=$GNU_HOST-gcc
+ENV CXX_COMPILER_ARM_LINUX=$GNU_HOST-g++
+
+ENV CROSS_INSTALL_PREFIX=/usr/$GNU_HOST
+ENV CROSS_TOOLCHAIN=/arm.toolchain.cmake
+
+# https://cmake.org/cmake/help/v3.21/manual/cmake-toolchains.7.html#cross-compiling-for-linux
+# https://cmake.org/cmake/help/v2.8.11/cmake.html#variable%3aCMAKE_PREFIX_PATH
+RUN echo "set(CMAKE_SYSTEM_NAME Linux)" >> $CROSS_TOOLCHAIN && \
+  echo "set(CMAKE_SYSTEM_PROCESSOR arm)" >> $CROSS_TOOLCHAIN && \
+  echo "set(CMAKE_C_COMPILER /usr/bin/$C_COMPILER_ARM_LINUX)" >> $CROSS_TOOLCHAIN && \
+  echo "set(CMAKE_CXX_COMPILER /usr/bin/$CXX_COMPILER_ARM_LINUX)" >> $CROSS_TOOLCHAIN && \
+  echo "set(CMAKE_PREFIX_PATH $CROSS_INSTALL_PREFIX)" >> $CROSS_TOOLCHAIN
+
+# Install basic set of packages
+RUN apt-get update && DEBIAN_FRONTEND=noninteractive \
+  apt-get --no-install-recommends install -y \
+    build-essential \
+    ca-certificates \
+    cmake \
+    g++-$GNU_HOST \
+    gcc-$GNU_HOST \
+    git \
+    libc6-dev-armhf-cross \
+    unzip \
+    wget && \
+  rm -rf /var/lib/apt/lists/*
+
+# tag:OpenSSL_1_1_1l
+ENV OPEN_SSL_SHA=fb047eb
+
+# Prepare OpenSSL (https://github.com/openssl/openssl)
+# libevent dependency
+RUN OPEN_SSL_DIR=/openssl && \
+  git clone --branch master https://github.com/openssl/openssl.git $OPEN_SSL_DIR && \
+  cd $OPEN_SSL_DIR && \
+  git checkout $OPEN_SSL_SHA && \
+  ./Configure linux-generic32 shared --prefix=$CROSS_INSTALL_PREFIX \
+                                     --openssldir=$CROSS_INSTALL_PREFIX/openssl \
+                                     --cross-compile-prefix=/usr/bin/arm-linux-gnueabihf- && \
+  make depend && \
+  make -j `nproc` && \
+  make install && \
+  cd / && \
+  rm -rf $OPEN_SSL_DIR
+
+# tag:release-2.1.12-stable
+ENV LIBEVENT_SHA=5df3037
+
+# Prepare libevent (https://github.com/libevent/libevent)
+RUN LIBEVENT_DIR=/libevent && \
+  git clone --branch master https://github.com/libevent/libevent.git $LIBEVENT_DIR && \
+  cd $LIBEVENT_DIR && \
+  git checkout $LIBEVENT_SHA && \
+  cmake -DCMAKE_TOOLCHAIN_FILE=$CROSS_TOOLCHAIN -DCMAKE_INSTALL_PREFIX=$CROSS_INSTALL_PREFIX . && \
+  make -j `nproc` && \
+  make install && \
+  cd / && \
+  rm -rf $LIBEVENT_DIR
+
+# tag:final_official_2.50
+ENV WIRING_PI_SHA=03e88ae
+
+# Prepare WiringPi (https://github.com/WiringPi/WiringPi)
+RUN WPI_DIR=/wpi && \
+  CLONE_WPI_DIR=$WPI_DIR/wiringPi && \
+  git clone --single-branch --branch master https://github.com/WiringPi/WiringPi.git $WPI_DIR && \
+  cd $CLONE_WPI_DIR && \
+  git checkout $WIRING_PI_SHA && \
+  make install CC=$C_COMPILER_ARM_LINUX \
+               DESTDIR=$CROSS_INSTALL_PREFIX PREFIX="" -j `nproc` && \
+  cd / && \
+  rm -rf $WPI_DIR
